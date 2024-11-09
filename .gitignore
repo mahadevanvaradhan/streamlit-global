@@ -1,0 +1,34 @@
+# Python files
+*.pyc
+*.pyo
+__pycache__/
+
+# Virtual environment
+venv/
+env/
+.env
+
+# Test files
+*.pytest_cache/
+.pytest_cache/
+
+# IDE files
+.idea/
+.vscode/
+.streamlit/
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# Logs and other non-code files
+*.log
+*.out
+*.err
+
+# Sphinx documentation
+docs/_build/
+
+# Jupyter Notebook files
+.ipynb_checkpoints/

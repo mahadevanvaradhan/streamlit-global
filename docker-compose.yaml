@@ -1,0 +1,17 @@
+version: '3'
+services:
+  appbd:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    env_file: .env
+    volumes:
+      - .:/usr/local/chatbot
+    ports:
+      - "8885:8888"
+      - "8855:8501"
+    networks:
+      - app-network
+
+networks:
+  app-network:

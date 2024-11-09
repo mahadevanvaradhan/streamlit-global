@@ -1,0 +1,17 @@
+credentials:
+  usernames:
+    superadmin:
+      email: superadmin@test.com
+      name: Superadmin
+      password: abc # To be replaced with hashed password
+    quickstepadmin:
+      email: quickstepadmin@test.com
+      name: Quickstep
+      password: def # To be replaced with hashed password
+cookie:
+  expiry_days: 30
+  key: random_signature_key # Must be string
+  name: random_cookie_name
+preauthorized:
+  emails:
+  - mahadevan.varadhan@gmail.com
