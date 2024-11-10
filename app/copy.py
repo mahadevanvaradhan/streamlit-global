@@ -17,6 +17,66 @@ from yaml.loader import SafeLoader
 with open('./.config/config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
+authenticator = Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days']
+)
+
+
+# try:
+#     authenticator.login()
+# except Exception as e:
+#     st.error(e)
+
+# Attempt to log in
+login_result = authenticator.login('sidebar', 'main')
+
+# Check if login_result is a tuple before unpacking
+if login_result:
+    name, authentication_status, username = login_result
+else:
+    name, authentication_status, username = None, None, None
+
+# If login is successful
+if authentication_status:
+    authenticator.logout('Logout', 'main')
+    st.write(f'Welcome *{name}*')
+    # Display the main content of the page
+    st.title('Main Content Here')
+    # Add the rest of your main page content below
+    
+# If login is unsuccessful
+elif authentication_status == False:
+    st.error('Username/password is incorrect')
+    
+# If login credentials have not been entered
+elif authentication_status is None:
+    # st.warning('Please enter your username and password')
+    pass
+
+# Assuming st.session_state["authentication_status"] is set elsewhere in your app:
+if "authentication_status" in st.session_state:
+    if st.session_state["authentication_status"]:
+        # If logout is initiated
+        if authenticator.logout('Logout', 'main'):
+            st.write('You have been logged out.')
+            st.session_state["authentication_status"] = None  # Reset the login state
+        else:
+            # If the user is still logged in, display the main content
+            st.write(f'Welcome *{st.session_state["name"]}*')
+            st.title('Main Content Here')
+            # Add the rest of your main page content below
+    
+    elif st.session_state["authentication_status"] == False:
+        st.error('Username/password is incorrect')
+    else:  # This covers the case where authentication_status is None
+        # st.warning('Please enter your username and password')
+        pass
+else:
+    # Handle case where authentication_status is not in session_state
+    st.warning('Please log in to continue.')
 
 class DocumentChunker:
     def __init__(self, chunk_size: int = 4000):
@@ -204,154 +264,116 @@ def display_conversation():
             st.write(message["content"])
 
 def main():
+    # st.set_page_config(page_title="Quickstep Document Processor", layout="wide")
+    st.title("Quickstep Document Processor")
 
-    authenticator = Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
+    # Initialize session state
+    initialize_session_state()
+
+    # Initialize handlers
+    doc_processor = DocumentProcessor()
+    llm_handler = LLMHandler()
+
+    # Sidebar controls
+    with st.sidebar:
+        st.header("Settings")
+        
+        # System prompt input
+        system_prompt = st.text_area(
+            "System Prompt",
+            value="""You are a helpful AI assistant. Answer questions based on the provided document.
+            When the document content is not relevant to the question, let the user know.
+            Keep your responses concise and relevant.""",
+            height=100
+        )
+        
+        # Model selection
+        selected_claude_model = st.selectbox(
+            "Select Claude Model",
+            options=list(llm_handler.claude_models.keys()),
+            format_func=lambda x: llm_handler.claude_models[x]
+        )
+        
+        selected_embedding_model = st.selectbox(
+            "Select Embedding Model",
+            options=list(llm_handler.embedding_models.keys()),
+            format_func=lambda x: llm_handler.embedding_models[x]
+        )
+
+        # Clear conversation button
+        if st.button("Clear Conversation"):
+            st.session_state.conversation_history = []
+            st.session_state.messages = []
+            st.session_state.embeddings = None
+            st.rerun()
+
+    # Document upload section
+    st.header("Document Upload")
+    uploaded_file = st.file_uploader(
+        "Upload a document (PDF, DOCX, TXT, MD, JSON)",
+        type=['pdf', 'docx', 'txt', 'md', 'json']
     )
 
-    # Attempt to log in
+    if uploaded_file:
+        content = doc_processor.read_file_content(uploaded_file)
+        if content:
+            st.session_state.document_context = content
+            st.success("File processed successfully!")
+            
+            with st.expander("View Document Content"):
+                st.text_area("Content", value=content, height=200, disabled=True)
+
+            # Get embedding if requested
+            if st.button("Generate Embedding"):
+                with st.spinner("Generating embeddings... This may take a while for large documents."):
+                    embedding = llm_handler.get_embedding(content, selected_embedding_model)
+                    if embedding:
+                        st.session_state.embeddings = embedding
+                        st.success(f"Embedding generated! (Length: {len(embedding)})")
+                        
+                        # Display first few dimensions of the embedding
+                        with st.expander("View Embedding Preview"):
+                            st.write(f"First 10 dimensions: {embedding[:10]}")
+
+    # Chat interface
+    st.header("Chat Interface")
+    display_conversation()
+
+    # User input
+    user_input = st.chat_input("Ask a question about the document...")
     
-    login_result = authenticator.login('sidebar', 'main')
-
-    # Check if login_result is a tuple before unpacking
-    if login_result:
-        name, authentication_status, username = login_result
-    else:
-        name, authentication_status, username = None, None, None
-
-    # Assuming st.session_state["authentication_status"] is set elsewhere in your app:
-    if "authentication_status" in st.session_state:
-        if st.session_state["authentication_status"]:
-            # If logout is initiated
-            if authenticator.logout('Logout', 'main'):
-                st.write('You have been logged out.')
-                st.session_state["authentication_status"] = None  # Reset the login state
-            else:
-                # If the user is still logged in, display the main content
-                st.write(f'Welcome *{st.session_state["name"]}*')
-                st.title("Quickstep Document Processor")
-
-                # Initialize session state
-                initialize_session_state()
-
-                # Initialize handlers
-                doc_processor = DocumentProcessor()
-                llm_handler = LLMHandler()
-
-                # Sidebar controls
-                with st.sidebar:
-                    st.image('./app/logo.png', caption=None, width=None, use_column_width=None, clamp=False, channels="RGB", output_format="auto", use_container_width=False)
-                    st.header("Settings")
-                    
-                    # System prompt input
-                    system_prompt = st.text_area(
-                        "System Prompt",
-                        value="""You are a helpful AI assistant. Answer questions based on the provided document.
-                        When the document content is not relevant to the question, let the user know.
-                        Keep your responses concise and relevant.""",
-                        height=100
-                    )
-                    
-                    # Model selection
-                    selected_claude_model = st.selectbox(
-                        "Select Claude Model",
-                        options=list(llm_handler.claude_models.keys()),
-                        format_func=lambda x: llm_handler.claude_models[x]
-                    )
-                    
-                    selected_embedding_model = st.selectbox(
-                        "Select Embedding Model",
-                        options=list(llm_handler.embedding_models.keys()),
-                        format_func=lambda x: llm_handler.embedding_models[x]
-                    )
-
-                    # Clear conversation button
-                    if st.button("Clear Conversation"):
-                        st.session_state.conversation_history = []
-                        st.session_state.messages = []
-                        st.session_state.embeddings = None
-                        st.rerun()
-
-                # Document upload section
-                st.header("Document Upload")
-                uploaded_file = st.file_uploader(
-                    "Upload a document (PDF, DOCX, TXT, MD, JSON)",
-                    type=['pdf', 'docx', 'txt', 'md', 'json']
-                )
-
-                if uploaded_file:
-                    content = doc_processor.read_file_content(uploaded_file)
-                    if content:
-                        st.session_state.document_context = content
-                        st.success("File processed successfully!")
-                        
-                        with st.expander("View Document Content"):
-                            st.text_area("Content", value=content, height=200, disabled=True)
-
-                        # Get embedding if requested
-                        if st.button("Generate Embedding"):
-                            with st.spinner("Generating embeddings... This may take a while for large documents."):
-                                embedding = llm_handler.get_embedding(content, selected_embedding_model)
-                                if embedding:
-                                    st.session_state.embeddings = embedding
-                                    st.success(f"Embedding generated! (Length: {len(embedding)})")
-                                    
-                                    # Display first few dimensions of the embedding
-                                    with st.expander("View Embedding Preview"):
-                                        st.write(f"First 10 dimensions: {embedding[:10]}")
-
-                # Chat interface
-                st.header("Chat Interface")
-                display_conversation()
-
-                # User input
-                user_input = st.chat_input("Ask a question about the document...")
-                
-                if user_input:
-                    # Add user message to conversation
-                    st.session_state.conversation_history.append({"role": "user", "content": user_input})
-                    
-                    # Prepare messages for API
-                    messages = []
-                    if st.session_state.document_context:
-                        messages.append({
-                            "role": "user",
-                            "content": f"Here is the document content:\n{st.session_state.document_context}"
-                        })
-                    
-                    # Add conversation history
-                    for msg in st.session_state.conversation_history:
-                        messages.append(msg)
-
-                    # Get AI response
-                    ai_response = llm_handler.get_llm_response(
-                        messages=messages,
-                        system_prompt=system_prompt,
-                        model=selected_claude_model
-                    )
-
-                    if ai_response:
-                        # Add AI response to conversation
-                        st.session_state.conversation_history.append({
-                            "role": "assistant",
-                            "content": ai_response
-                        })
-                        
-                        # Rerun to update the display
-                        st.rerun()
+    if user_input:
+        # Add user message to conversation
+        st.session_state.conversation_history.append({"role": "user", "content": user_input})
         
-        elif st.session_state["authentication_status"] == False:
-            st.error('Username/password is incorrect')
-        else:  # This covers the case where authentication_status is None
-            st.warning('Welcome to Quickstep Self Service Sytem. Please login to access the application.')
-            st.image('./app/logo.png', caption=None, width=None, use_column_width=None, clamp=False, channels="RGB", output_format="auto", use_container_width=False)
-    else:
-        # Handle case where authentication_status is not in session_state
-        st.warning('Please log in to continue.')
-    
+        # Prepare messages for API
+        messages = []
+        if st.session_state.document_context:
+            messages.append({
+                "role": "user",
+                "content": f"Here is the document content:\n{st.session_state.document_context}"
+            })
+        
+        # Add conversation history
+        for msg in st.session_state.conversation_history:
+            messages.append(msg)
+
+        # Get AI response
+        ai_response = llm_handler.get_llm_response(
+            messages=messages,
+            system_prompt=system_prompt,
+            model=selected_claude_model
+        )
+
+        if ai_response:
+            # Add AI response to conversation
+            st.session_state.conversation_history.append({
+                "role": "assistant",
+                "content": ai_response
+            })
+            
+            # Rerun to update the display
+            st.rerun()
 
 if __name__ == "__main__":
     main()

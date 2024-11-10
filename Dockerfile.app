@@ -29,4 +29,4 @@ ENV PYTHONPATH /usr/local/chatbot
 
 EXPOSE 8888
 # CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
-CMD ["streamlit", "run", "stream_chunk.py"]
+CMD ["streamlit", "run", "app/stream_chunk.py", "--server.headless=true"]
