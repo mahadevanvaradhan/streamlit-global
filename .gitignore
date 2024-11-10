@@ -16,7 +16,7 @@ env/
 .idea/
 .vscode/
 .streamlit/
-.config/
+# .config/
 
 # Build files
 build/
